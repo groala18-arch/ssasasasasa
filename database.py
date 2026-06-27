@@ -1,19 +1,27 @@
 import sqlite3
+import os
 
-DB_NAME = "svara.db"
+# Жестко прописываем путь к базе данных (в ту же папку, где лежит сам скрипт)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_NAME = os.path.join(BASE_DIR, "svara.db")
 
 def init_db():
     """Создает таблицы, если их еще нет."""
-    with sqlite3.connect(DB_NAME) as conn:
-        cursor = conn.cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS users (
-                tg_id INTEGER PRIMARY KEY,
-                username TEXT,
-                balance INTEGER DEFAULT 50000
-            )
-        ''')
-        conn.commit()
+    # Добавили try-except, чтобы если база не создастся, сервер хотя бы не упал с 502
+    try:
+        with sqlite3.connect(DB_NAME) as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                    tg_id INTEGER PRIMARY KEY,
+                    username TEXT,
+                    balance INTEGER DEFAULT 50000
+                )
+            ''')
+            conn.commit()
+        print(f"✅ База данных успешно подключена: {DB_NAME}")
+    except Exception as e:
+        print(f"❌ КРИТИЧЕСКАЯ ОШИБКА БАЗЫ ДАННЫХ: {e}")
 
 def get_or_create_user(tg_id, username):
     """Возвращает данные юзера, либо создает нового со стартовым балансом."""
