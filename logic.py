@@ -4,7 +4,6 @@ import time
 SUITS = ['Hearts', 'Diamonds', 'Clubs', 'Spades']
 SUITS_RU = {'Hearts': 'Черви ♥️', 'Diamonds': 'Буби ♦️', 'Clubs': 'Крести ♣️', 'Spades': 'Пики ♠️'}
 
-
 class SvaraGame:
     def __init__(self, room_id, log_callback=None):
         self.room_id = room_id
@@ -273,7 +272,6 @@ class SvaraGame:
                 self.log(f"🏃 {name} покинул стол.")
 
             if len(self.players) < 2 and self.state not in ["WAITING_PLAYERS", "PRE_ROUND_WAIT"]:
-                # Если раунд еще не дошел до раздачи (платим анте и т.д.), возвращаем вложения
                 if self.state in ["CHOOSE_ANTE", "PAYING_ANTE", "SVARA_CHECK_IN"]:
                     self.log("⚠️ Недостаточно игроков для продолжения. Возврат фишек.")
                     for s in self.player_order:
@@ -281,7 +279,6 @@ class SvaraGame:
                             self.players[s]['balance'] += self.players[s]['total_round_investment']
                             self.players[s]['total_round_investment'] = 0
                 else:
-                    # Если игра уже шла, оставшийся единственный игрок забирает банк
                     remaining_sids = [s for s in self.player_order if s in self.players]
                     if remaining_sids:
                         winner_sid = remaining_sids[0]
@@ -813,21 +810,31 @@ class SvaraGame:
         winner_sid = self.reveal_data['winners'][0]
         self.next_dealer_sid = winner_sid
 
+        # 1. СИТУАЦИЯ: ИГРОК ЗАБРАЛ БАНК БЕЗ ВСКРЫТИЯ (ВСЕ СПАСОВАЛИ)
         if self.reveal_data.get('single_winner'):
-            self.players[winner_sid]['balance'] += self.pot;
+            z_partner_sid = self.players[winner_sid].get('zakruzhit_partner')
+            if z_partner_sid and z_partner_sid in self.players:
+                half = self.pot // 2
+                self.players[winner_sid]['balance'] += (self.pot - half)
+                self.players[z_partner_sid]['balance'] += half
+                self.reveal_data['split_with'] = z_partner_sid # Передаем на фронт
+                self.log(f"💬 {self.players[winner_sid]['name']} забирает банк без вскрытия и делит его (50/50) с {self.players[z_partner_sid]['name']}! 🤝")
+            else:
+                self.players[winner_sid]['balance'] += self.pot
             self.pot = 0
-            self.state = "PRE_ROUND_WAIT";
-            self.turn_time = 15.0;
+            self.state = "PRE_ROUND_WAIT"
+            self.turn_time = 15.0
             self.set_timer()
             return True, "Победитель забрал банк"
 
+        # 2. СИТУАЦИЯ: СВАРА
         if self.reveal_data.get('is_svara'):
-            self.state = "PRE_ROUND_WAIT";
-            self.turn_time = 15.0;
+            self.state = "PRE_ROUND_WAIT"
+            self.turn_time = 15.0
             self.set_timer()
-            self.svara_active = True;
+            self.svara_active = True
             self.svara_pot = self.pot
-            self.svara_players = self.reveal_data['winners'];
+            self.svara_players = self.reveal_data['winners']
             self.svara_buyin_amount = self.reveal_data['svara_buyin']
             self.pot = 0
             return True, "Переход к Сваре"
@@ -835,17 +842,18 @@ class SvaraGame:
         winner_p = self.players[winner_sid]
         total_won = 0
 
+        # Разбираемся с олл-инами
         if winner_p['all_in']:
             total_round_bets = sum(p['total_round_investment'] for p in self.players.values())
             dead_money = max(0, self.pot - total_round_bets)
-            total_won += dead_money;
+            total_won += dead_money
             self.pot -= dead_money
 
             for sid in list(self.players.keys()):
                 p = self.players[sid]
                 claim = min(winner_p['total_round_investment'], p['total_round_investment'])
-                total_won += claim;
-                self.pot -= claim;
+                total_won += claim
+                self.pot -= claim
                 p['total_round_investment'] -= claim
 
             if self.pot > 0:
@@ -857,21 +865,23 @@ class SvaraGame:
                     self.log(f"💬 Остаток банка ({self.pot} 💰) поделен поровну между участниками вскрытия!")
                 self.pot = 0
         else:
-            total_won = self.pot;
+            total_won = self.pot
             self.pot = 0
 
+        # 3. СИТУАЦИЯ: ПОБЕДА НА ВСКРЫТИИ (ДЕЛЕНИЕ БАНКА, ЕСЛИ КРУЖАТ)
         z_partner_sid = winner_p.get('zakruzhit_partner')
         if z_partner_sid and z_partner_sid in self.players:
             half = total_won // 2
             winner_p['balance'] += (total_won - half)
             self.players[z_partner_sid]['balance'] += half
+            self.reveal_data['split_with'] = z_partner_sid # Передаем на фронт
             self.log(
                 f"💬 Игрок {winner_p['name']} делит выигрыш (50/50) со спонсором {self.players[z_partner_sid]['name']}! 🤝")
         else:
             winner_p['balance'] += total_won
 
-        self.state = "PRE_ROUND_WAIT";
-        self.turn_time = 15.0;
+        self.state = "PRE_ROUND_WAIT"
+        self.turn_time = 15.0
         self.set_timer()
         return True, "Раунд завершен"
 
@@ -978,6 +988,7 @@ class SvaraGame:
                 p['balance'] -= req_amt;
                 from_p['balance'] += req_amt
                 from_p['zakruzhit_partner'] = sid;
+                p['zakruzhit_partner'] = from_sid # ДВУСТОРОННЯЯ СВЯЗЬ
                 p['incoming_zakruzhit'] = None
                 self.log(f"🔥 {p['name']} согласился закружить с {from_p['name']}, выделив {req_amt} 💰!")
                 return True, "Закружили!"
@@ -1025,6 +1036,7 @@ class SvaraGame:
             self.turn_time = 30;
             self.set_timer()
             self.check_paying_ante_progress()
+            p['last_action'] = f'Анте ({self.ante_stake})'
             return True, "Анте выбрано"
 
         if self.state == "PAYING_ANTE":
@@ -1036,7 +1048,7 @@ class SvaraGame:
                 p['total_round_investment'] += self.ante_stake;
                 p['acted'] = True;
                 p['status'] = 'В игре'
-                p['last_action'] = 'Анте'
+                p['last_action'] = f'Анте ({self.ante_stake})'
                 self.log(f"💵 {p['name']} внес анте {self.ante_stake} 💰")
             elif action_type == "fold":
                 self.log(f"🚪 {p['name']} отказался вкупаться и покинул стол (Кик).")
@@ -1055,7 +1067,7 @@ class SvaraGame:
                 self.pot += self.svara_buyin_amount
                 p['total_round_investment'] += self.svara_buyin_amount;
                 p['status'] = 'В Сваре'
-                p['last_action'] = 'Вкупка'
+                p['last_action'] = f'Вкупка ({self.svara_buyin_amount})'
                 self.log(f"🔥 {p['name']} входит в Свару ({self.svara_buyin_amount} 💰)")
             else:
                 p['folded'] = True;
@@ -1094,7 +1106,7 @@ class SvaraGame:
                     self.pot += dark_amount
                     p['total_round_investment'] += dark_amount;
                     p['round_bet'] = dark_amount * 2
-                    p['last_action'] = 'Тёмная'
+                    p['last_action'] = f'Тёмная ({dark_amount})'
                     self.log(f"🌙 {p['name']} ТЕМНИТ на {dark_amount} 💰!")
                     self.advance_to_extra_hands()
                     return True, "Тёмная ставка принята"
@@ -1222,7 +1234,7 @@ class SvaraGame:
                 p['round_bet'] += chips;
                 p['all_in'] = True;
                 p['acted'] = True
-                p['last_action'] = 'Ва-Банк'
+                p['last_action'] = f'Ва-Банк ({chips})'
                 self.log(f"🚀 {p['name']} идет ВА-БАНК ({chips} 💰)")
                 self.advance_betting_turn()
                 return True, "Ва-банк стека"
@@ -1261,7 +1273,7 @@ class SvaraGame:
                 p['round_bet'] = raise_amount;
                 self.current_bet = raise_amount;
                 p['acted'] = True
-                p['last_action'] = 'Повысил'
+                p['last_action'] = f'Повысил ({raise_amount})'
 
                 if sid == self.dark_bettor_sid: p['raises_made'] += 1
                 if not is_opening: self.raise_count += 1
@@ -1296,7 +1308,7 @@ class SvaraGame:
                 p['total_round_investment'] += to_call
                 p['round_bet'] = self.current_bet;
                 p['acted'] = True
-                p['last_action'] = 'Уравнял'
+                p['last_action'] = f'Уравнял ({to_call})'
                 self.log(f"✅ {p['name']} уравнивает ставку ({to_call} 💰)")
                 self.advance_betting_turn()
                 return True, "Ставка принята"
@@ -1410,5 +1422,8 @@ class SvaraGame:
             "reveal_data": getattr(self, 'reveal_data', {}) if self.state in ["REVEAL", "PRE_ROUND_WAIT"] else {},
             "svara_proposer_sid": getattr(self, 'svara_proposer_sid', None), "dark_raised": dark_raised,
             "excluded_suit": self.excluded_suit, "deck_count": len(self.deck),
-            "raise_count": getattr(self, 'raise_count', 0)
+            "raise_count": getattr(self, 'raise_count', 0),
+            "suit_vote_yes": self.suit_vote_yes,
+            "suit_vote_no": self.suit_vote_no,
+            "suit_vote_total": len([s for s in self.player_order if s in self.players])
         }
