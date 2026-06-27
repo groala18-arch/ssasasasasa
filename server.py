@@ -13,7 +13,7 @@ from logic import SvaraGame
 import database
 
 # 🔴 ВАЖНО: Впиши сюда токен своего бота от BotFather!
-BOT_TOKEN = "8755606935:AAGqyXPEG4sGGFcHft18czu6Bg6dLpwqfPI"
+BOT_TOKEN = "8895138994:AAEpJHT7QYAWzYtWxxd_bekpJ1VZMmtktGE"
 
 sio = socketio.AsyncServer(async_mode='aiohttp', cors_allowed_origins='*')
 app = web.Application()
@@ -352,5 +352,6 @@ async def start_background_tasks(app):
 app.on_startup.append(start_background_tasks)
 
 if __name__ == '__main__':
-    print("🚀 Сервер запущен на http://localhost:8000")
-    web.run_app(app, host='localhost', port=8000)
+    # Railway передает порт в переменной окружения PORT
+    port = int(os.environ.get("PORT", 8000))
+    web.run_app(app, host='0.0.0.0', port=port)
