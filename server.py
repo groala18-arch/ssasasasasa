@@ -1,24 +1,61 @@
+import threading
 import asyncio
-import socketio
-from aiohttp import web
-from urllib.parse import parse_qs, unquote
 import os
 import hmac
 import hashlib
 import json
+from urllib.parse import parse_qs, unquote
 
-# --- ИМПОРТЫ ЛОГИКИ ИГР ---
+# --- ИМПОРТЫ ДЛЯ БОТА ---
+import telebot
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+
+# --- ИМПОРТЫ ДЛЯ СЕРВЕРА ---
+import socketio
+from aiohttp import web
+
+# --- ИМПОРТЫ ТВОЕЙ ЛОГИКИ ---
 from logic import SvaraGame
 # from poker_logic import PokerGame  # Раскомментируй, когда будет готов файл покера
 import database
 
-# 🔴 ВАЖНО: Впиши сюда токен своего бота от BotFather!
-BOT_TOKEN = "8895138994:AAEpJHT7QYAWzYtWxxd_bekpJ1VZMmtktGE"
+# ==========================================
+# 1. КОНФИГУРАЦИЯ (Берем из Railway Variables)
+# ==========================================
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8895138994:AAEpJHT7QYAWzYtWxxd_bekpJ1VZMmtktGE")
+WEBAPP_URL = os.getenv("WEBAPP_URL", "https://games-card.up.railway.app")
 
+# ==========================================
+# 2. ЛОГИКА ТЕЛЕГРАМ-БОТА (Работает в фоне)
+# ==========================================
+bot = telebot.TeleBot(BOT_TOKEN)
+
+@bot.message_handler(commands=['start'])
+def start_command(message):
+    markup = InlineKeyboardMarkup()
+    web_app_btn = InlineKeyboardButton(
+        text="🃏 Играть в Свару",
+        web_app=WebAppInfo(url=WEBAPP_URL)
+    )
+    markup.add(web_app_btn)
+
+    bot.send_message(
+        message.chat.id,
+        "Добро пожаловать в клуб! Жми кнопку ниже, чтобы открыть стол.",
+        reply_markup=markup
+    )
+
+def run_bot():
+    """Эта функция запускает бота в отдельном потоке"""
+    print("🤖 Телеграм-бот успешно запущен и ждет сообщения...")
+    bot.infinity_polling()
+
+# ==========================================
+# 3. ЛОГИКА ВЕБ-СЕРВЕРА И ИГРЫ (Основной поток)
+# ==========================================
 sio = socketio.AsyncServer(async_mode='aiohttp', cors_allowed_origins='*')
 app = web.Application()
 sio.attach(app)
-
 
 # --- УПРАВЛЕНИЕ СТОЛАМИ ---
 def broadcast_game_log(room_id, message):
@@ -28,7 +65,6 @@ def broadcast_game_log(room_id, message):
             loop.create_task(sio.emit('game_log', {'text': message}, room=room_id))
     except RuntimeError:
         pass
-
 
 games = {
     'table_1': SvaraGame('table_1', log_callback=broadcast_game_log),
@@ -44,10 +80,8 @@ TABLE_LIMITS = {
     # 'poker_1': {'min': 1000, 'name': 'Техасский Холдем'}
 }
 
-
 # --- БЕЗОПАСНОСТЬ: ПРОВЕРКА TELEGRAM INIT DATA ---
 def validate_telegram_data(init_data: str, token: str) -> dict:
-    """Проверяет криптографическую подпись Telegram и возвращает данные пользователя"""
     try:
         parsed_data = dict(parse_qs(init_data))
         if 'hash' not in parsed_data:
@@ -70,7 +104,6 @@ def validate_telegram_data(init_data: str, token: str) -> dict:
         print(f"Ошибка валидации Telegram: {e}")
         return None
 
-
 # --- АНТИЧИТ: УМНАЯ РАССЫЛКА СОСТОЯНИЯ ---
 async def broadcast_state(room_id):
     game = games[room_id]
@@ -86,12 +119,10 @@ async def broadcast_state(room_id):
     else:
         await sio.emit('update_state', spectator_state, room=room_id)
 
-
 # --- РОУТЕРЫ ---
 async def lobby_handler(request):
     with open('lobby.html', 'r', encoding='utf-8') as f:
         return web.Response(text=f.read(), content_type='text/html')
-
 
 async def game_handler(request):
     room_id = request.query.get('room', 'table_1')
@@ -103,7 +134,6 @@ async def game_handler(request):
     with open(filename, 'r', encoding='utf-8') as f:
         return web.Response(text=f.read(), content_type='text/html')
 
-
 async def api_profile(request):
     tg_id = request.query.get('tg_id')
     name = request.query.get('name', 'Аноним')
@@ -112,7 +142,6 @@ async def api_profile(request):
 
     user_db = await asyncio.to_thread(database.get_or_create_user, int(tg_id), name)
     return web.json_response({'balance': user_db['balance'], 'username': user_db['username']})
-
 
 async def api_topup(request):
     tg_id = request.query.get('tg_id')
@@ -123,11 +152,9 @@ async def api_topup(request):
     user_db = await asyncio.to_thread(database.get_or_create_user, int(tg_id), "Аноним")
     return web.json_response({'success': True, 'new_balance': user_db['balance']})
 
-
 async def api_tables_info(request):
     info = {room: len(game.players) for room, game in games.items()}
     return web.json_response(info)
-
 
 app.router.add_get('/', lobby_handler)
 app.router.add_get('/game', game_handler)
@@ -136,12 +163,10 @@ app.router.add_get('/api/topup', api_topup)
 app.router.add_get('/api/tables_info', api_tables_info)
 app.router.add_static('/static/', path=os.path.join(os.path.dirname(__file__), 'static'), name='static')
 
-
 # --- SOCKET.IO СОБЫТИЯ ---
 def get_room_and_game(session):
     room_id = session.get('room')
     return room_id, games.get(room_id) if room_id else None
-
 
 @sio.event
 async def connect(sid, environ):
@@ -158,7 +183,6 @@ async def connect(sid, environ):
     else:
         return False
 
-
 @sio.event
 async def disconnect(sid):
     session = await sio.get_session(sid)
@@ -167,19 +191,14 @@ async def disconnect(sid):
 
     print(f"[-] Отключился клиент: {sid} от {room_id}")
     if sid in game.players:
-        # Извлекаем данные игрока и удаляем его со стола
         player_data = game.players.pop(sid)
         game.remove_player(sid)
-
         tg_id = player_data['tg_id']
         table_balance = player_data['balance']
 
-        # Асинхронно возвращаем деньги в БД
         await asyncio.to_thread(database.add_to_balance, tg_id, table_balance)
-        print(f"💰 Игрок {player_data['name']} вышел (disconnect). {table_balance} 💰 возвращено в БД.")
-
+        print(f"💰 Игрок {player_data['name']} вышел. {table_balance} 💰 возвращено в БД.")
         await broadcast_state(room_id)
-
 
 @sio.event
 async def join_game(sid, data):
@@ -187,7 +206,6 @@ async def join_game(sid, data):
     room_id, game = get_room_and_game(session)
     if not game: return
 
-    # Проверяем подпись Telegram
     init_data = data.get('initData')
     if not init_data:
         await sio.emit('error', {'message': 'Ошибка авторизации: нет initData'}, room=sid)
@@ -212,26 +230,21 @@ async def join_game(sid, data):
         await sio.emit('error', {'message': f"Минимальная сумма вкупки: {table_limit}!"}, room=sid)
         return
 
-    # Запрашиваем баланс в отдельном потоке
     user_db = await asyncio.to_thread(database.get_or_create_user, tg_id, name)
     main_balance = user_db.get('balance', 0)
 
     if buyin_amount > main_balance:
-        await sio.emit('error', {'message': f'Недостаточно средств в Синдикате! (Доступно: {main_balance})'}, room=sid)
+        await sio.emit('error', {'message': f'Недостаточно средств! (Доступно: {main_balance})'}, room=sid)
         return
 
-    # Списываем фишки асинхронно
     await asyncio.to_thread(database.add_to_balance, tg_id, -buyin_amount)
-
     success, msg = game.add_player(sid=sid, tg_id=tg_id, name=user_db['username'], balance=buyin_amount, seat=seat)
 
     if success:
         await broadcast_state(room_id)
     else:
-        # Если посадка не удалась (нет мест и т.д.), возвращаем деньги
         await asyncio.to_thread(database.add_to_balance, tg_id, buyin_amount)
         await sio.emit('error', {'message': msg}, room=sid)
-
 
 @sio.event
 async def leave_game(sid):
@@ -242,15 +255,12 @@ async def leave_game(sid):
     if sid in game.players:
         player_data = game.players.pop(sid)
         game.remove_player(sid)
-
         tg_id = player_data['tg_id']
         table_balance = player_data['balance']
 
         await asyncio.to_thread(database.add_to_balance, tg_id, table_balance)
-        print(f"💰 {player_data['name']} встал со стола. В БД возвращено {table_balance} 💰")
-
+        print(f"💰 {player_data['name']} встал со стола. Возвращено {table_balance} 💰")
         await broadcast_state(room_id)
-
 
 @sio.event
 async def player_action(sid, data):
@@ -269,7 +279,6 @@ async def player_action(sid, data):
 
     if success:
         await broadcast_state(room_id)
-
         if game.state == "ROUND_END":
             sids_to_remove = []
             for player_sid, p_data in game.players.items():
@@ -279,15 +288,13 @@ async def player_action(sid, data):
             for p_sid in sids_to_remove:
                 p_name = game.players[p_sid]['name']
                 game.remove_player(p_sid)
-                await sio.emit('error', {'message': 'Ваш баланс за столом исчерпан. Пополните счет в Лобби!'},
-                               room=p_sid)
-                broadcast_game_log(room_id, f"💸 У {p_name} закончились фишки. Он покидает стол.")
+                await sio.emit('error', {'message': 'Ваш баланс за столом исчерпан!'}, room=p_sid)
+                broadcast_game_log(room_id, f"💸 У {p_name} закончились фишки.")
 
             if sids_to_remove:
                 await broadcast_state(room_id)
     else:
         await sio.emit('error', {'message': msg}, room=sid)
-
 
 @sio.event
 async def voice_message(sid, data):
@@ -295,7 +302,6 @@ async def voice_message(sid, data):
     room_id, game = get_room_and_game(session)
     if room_id and game and sid in game.players:
         await sio.emit('voice_message', data, room=room_id, skip_sid=sid)
-
 
 @sio.event
 async def chat_message(sid, data):
@@ -307,7 +313,6 @@ async def chat_message(sid, data):
         if text:
             await sio.emit('chat_message', {'sid': sid, 'sender_name': sender_name, 'text': text}, room=room_id)
 
-
 @sio.event
 async def interactive_action(sid, data):
     session = await sio.get_session(sid)
@@ -316,7 +321,6 @@ async def interactive_action(sid, data):
         data['sender'] = sid
         await sio.emit('interactive_action', data, room=room_id, skip_sid=sid)
 
-
 @sio.event
 async def request_state(sid, data=None):
     session = await sio.get_session(sid)
@@ -324,14 +328,12 @@ async def request_state(sid, data=None):
     if game:
         await sio.emit('update_state', game.get_state(request_sid=sid), room=sid)
 
-
 @sio.event
 async def get_state(sid, data=None):
     session = await sio.get_session(sid)
     room_id, game = get_room_and_game(session)
     if game:
         await sio.emit('update_state', game.get_state(request_sid=sid), room=sid)
-
 
 async def game_timer_loop():
     while True:
@@ -342,16 +344,22 @@ async def game_timer_loop():
                 if changed:
                     await broadcast_state(room_id)
             except Exception as e:
-                print(f"Ошибка в таймере комнаты {room_id}: {e}")
-
+                print(f"Ошибка таймера {room_id}: {e}")
 
 async def start_background_tasks(app):
     app['timer_task'] = asyncio.create_task(game_timer_loop())
 
-
 app.on_startup.append(start_background_tasks)
 
+# ==========================================
+# 4. ТОЧКА ВХОДА (Запуск всего)
+# ==========================================
 if __name__ == '__main__':
-    # Railway передает порт в переменной окружения PORT
+    # 1. Запускаем Телеграм-бота в отдельном фоновом потоке
+    bot_thread = threading.Thread(target=run_bot, daemon=True)
+    bot_thread.start()
+
+    # 2. Запускаем Веб-сервер в основном потоке
+    print("🚀 Веб-сервер запускается...")
     port = int(os.environ.get("PORT", 8000))
     web.run_app(app, host='0.0.0.0', port=port)
