@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Svara Syndicate - Lobby</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Nunito+Sans:opsz,wght@6..12,400;6..12,700;6..12,900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0f0c0a;
+            --text-color: #e8dccc;
+            --gold-border: #dcb360;
+            --gold-gradient: linear-gradient(135deg, #ce9e4b, #eedfa8, #b0812f, #eedfa8, #a27221);
+            --blood-red: #8b1818;
+            --glass-bg: rgba(20, 16, 14, 0.85);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+
+        body {
+            font-family: 'Nunito Sans', sans-serif;
+            background-color: var(--bg-color);
+            background-image: radial-gradient(circle at 50% 30%, #1e1713 0%, #0f0c0a 80%);
+            color: var(--text-color);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100svh;
+        }
+
+        .header { text-align: center; margin-bottom: 30px; width: 100%; }
+        .header h1 { font-family: 'Lora', serif; color: var(--gold-border); font-size: 28px; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 4px 15px rgba(0,0,0,0.8); }
+
+        .profile-card {
+            background: var(--glass-bg);
+            border: 1px solid var(--gold-border);
+            border-radius: 8px;
+            padding: 15px 20px;
+            width: 100%;
+            max-width: 400px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+        }
+
+        .profile-info h2 { font-size: 16px; margin-bottom: 5px; color: #fff; }
+        .balance { font-family: 'Lora', serif; font-size: 20px; font-weight: 700; color: var(--gold-border); }
+
+        .tables-container { width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 15px; }
+
+        .table-card {
+            background: linear-gradient(145deg, #1c1410, #0a0705);
+            border: 1px solid #3d3129;
+            border-radius: 8px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.7);
+            transition: all 0.3s ease;
+        }
+
+        .table-card:active { transform: scale(0.98); border-color: var(--gold-border); }
+
+        .table-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .table-name { font-family: 'Lora', serif; font-size: 18px; font-weight: 700; color: #fff; }
+        .table-stakes { font-size: 12px; color: #887a70; text-transform: uppercase; letter-spacing: 1px; }
+
+        .play-btn {
+            background: var(--gold-gradient);
+            color: #1a1614;
+            border: none;
+            padding: 12px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 900;
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            outline: none;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+
+        .vip-table { border-color: var(--blood-red); position: relative; overflow: hidden; }
+        .vip-table::before {
+            content: 'VIP'; position: absolute; top: 10px; right: -25px; background: var(--blood-red); color: #fff; font-size: 10px; font-weight: bold; padding: 4px 30px; transform: rotate(45deg); box-shadow: 0 2px 5px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>Синдикат</h1>
+    </div>
+
+    <div class="profile-card">
+        <div class="profile-info">
+            <h2 id="user-name">Загрузка...</h2>
+            <div class="balance" id="user-balance">... 💰</div>
+        </div>
+        <div style="font-size: 32px;">💼</div>
+    </div>
+    <button class="play-btn" style="margin-bottom: 20px; background: #1a1614; color: var(--gold-border); border: 1px solid var(--gold-border);" onclick="getTestMoney()">
+    Получить грев (+50k 💰)
+</button>
+    <div class="tables-container">
+        <div class="table-card">
+            <div class="table-header">
+                <div class="table-name">Уличный Катран</div>
+                <div class="table-stakes">Вход: 500 - 5000</div>
+            </div>
+            <button class="play-btn" onclick="joinTable('table_1')">Сесть за стол</button>
+        </div>
+
+        <div class="table-card">
+            <div class="table-header">
+                <div class="table-name">Зал Казино</div>
+                <div class="table-stakes">Вход: 5000 - 50000</div>
+            </div>
+            <button class="play-btn" onclick="joinTable('table_2')">Сесть за стол</button>
+        </div>
+
+        <div class="table-card vip-table">
+            <div class="table-header">
+                <div class="table-name">Кабинет Дона</div>
+                <div class="table-stakes">Вход: от 100000</div>
+            </div>
+            <button class="play-btn" style="background: linear-gradient(135deg, #8b1818, #3b0505); color: #fff;" onclick="joinTable('table_vip')">Сесть за стол</button>
+        </div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.ready();
+
+        const user = tg.initDataUnsafe?.user;
+        const userId = user ? user.id : 123456789;
+
+        document.getElementById('user-name').innerText = user ? user.first_name : "Гость";
+
+        // Запрос к бэкенду для получения реального баланса из БД
+        // Пример fetch-запроса, который мы настроим на твоем server.py
+        /*
+        fetch(`/api/profile?tg_id=${userId}`)
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('user-balance').innerText = `${data.balance} 💰`;
+            });
+        */
+
+        function joinTable(tableId) {
+            if (tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+            // Переход на страницу самого стола (твоего HTML файла)
+            window.location.href = `/game?room=${tableId}&tg_id=${userId}`;
+        }
+    </script>
+</body>
+</html>

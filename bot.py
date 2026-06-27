@@ -1,8 +1,8 @@
 import telebot
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 
-TOKEN = "8755606935:AAGqyXPEG4sGGFcHft18czu6Bg6dLpwqfPI"
-WEBAPP_URL = "https://4bf6-5-253-66-23.ngrok-free.app"
+TOKEN = "8895138994:AAEpJHT7QYAWzYtWxxd_bekpJ1VZMmtktGE"
+WEBAPP_URL = "https://games-card.up.railway.app"
 
 bot = telebot.TeleBot(TOKEN)
 
