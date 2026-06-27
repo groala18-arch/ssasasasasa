@@ -22,7 +22,7 @@ import database
 # ==========================================
 # 1. КОНФИГУРАЦИЯ (Берем из Railway Variables)
 # ==========================================
-BOT_TOKEN = os.getenv("BOT_TOKEN", "8895138994:AAEpJHT7QYAWzYtWxxd_bekpJ1VZMmtktGE")
+BOT_TOKEN = os.getenv("BOT_TOKEN", "8895138994:AAHZpVyZA-seb2cXqakY-pvKjYKZEe4fSn0")
 WEBAPP_URL = os.getenv("WEBAPP_URL", "https://games-card.up.railway.app")
 
 # ==========================================
