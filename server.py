@@ -22,6 +22,7 @@ import database
 # ==========================================
 # 1. КОНФИГУРАЦИЯ (Берем из Railway Variables)
 # ==========================================
+# ⚠️ ВНИМАНИЕ: Я оставил твой токен здесь для теста, но если код пойдет на GitHub, лучше его отсюда убрать!
 BOT_TOKEN = os.getenv("BOT_TOKEN", "8895138994:AAHZpVyZA-seb2cXqakY-pvKjYKZEe4fSn0")
 WEBAPP_URL = os.getenv("WEBAPP_URL", "https://games-card.up.railway.app")
 
@@ -119,20 +120,33 @@ async def broadcast_state(room_id):
     else:
         await sio.emit('update_state', spectator_state, room=room_id)
 
-# --- РОУТЕРЫ ---
+# --- РОУТЕРЫ (ИСПРАВЛЕННЫЕ ПУТИ) ---
+# Получаем точный путь к папке, где лежит этот скрипт
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 async def lobby_handler(request):
-    with open('lobby.html', 'r', encoding='utf-8') as f:
-        return web.Response(text=f.read(), content_type='text/html')
+    try:
+        file_path = os.path.join(BASE_DIR, 'lobby.html')
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return web.Response(text=f.read(), content_type='text/html')
+    except Exception as e:
+        print(f"❌ Ошибка в lobby_handler: {e}")
+        return web.Response(text=f"Критическая ошибка сервера: файл лобби не найден. Ошибка: {e}", status=500)
 
 async def game_handler(request):
-    room_id = request.query.get('room', 'table_1')
-    filename = 'table_poker.html' if 'poker' in room_id else 'table.html'
+    try:
+        room_id = request.query.get('room', 'table_1')
+        filename = 'table_poker.html' if 'poker' in room_id else 'table.html'
+        file_path = os.path.join(BASE_DIR, filename)
 
-    if not os.path.exists(filename):
-        return web.Response(text=f"Файл стола {filename} не найден", status=404)
+        if not os.path.exists(file_path):
+            return web.Response(text=f"Файл стола {filename} не найден", status=404)
 
-    with open(filename, 'r', encoding='utf-8') as f:
-        return web.Response(text=f.read(), content_type='text/html')
+        with open(file_path, 'r', encoding='utf-8') as f:
+            return web.Response(text=f.read(), content_type='text/html')
+    except Exception as e:
+        print(f"❌ Ошибка в game_handler: {e}")
+        return web.Response(text=f"Критическая ошибка сервера. Ошибка: {e}", status=500)
 
 async def api_profile(request):
     tg_id = request.query.get('tg_id')
@@ -161,7 +175,9 @@ app.router.add_get('/game', game_handler)
 app.router.add_get('/api/profile', api_profile)
 app.router.add_get('/api/topup', api_topup)
 app.router.add_get('/api/tables_info', api_tables_info)
-app.router.add_static('/static/', path=os.path.join(os.path.dirname(__file__), 'static'), name='static')
+
+# Исправлен путь для статических файлов (CSS/JS/Картинки)
+app.router.add_static('/static/', path=os.path.join(BASE_DIR, 'static'), name='static')
 
 # --- SOCKET.IO СОБЫТИЯ ---
 def get_room_and_game(session):
