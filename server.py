@@ -361,5 +361,5 @@ if __name__ == '__main__':
 
     # 2. Запускаем Веб-сервер в основном потоке
     print("🚀 Веб-сервер запускается...")
-    port = int(os.environ.get("PORT", 8000))
+    port = int(os.environ.get("PORT", 8080))
     web.run_app(app, host='0.0.0.0', port=port)
